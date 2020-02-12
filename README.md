@@ -1,4 +1,4 @@
 # irCLASH
-pipeline for irCLASH-seq
-The detail manual please see "Manual" file.
-For each perl script, people can get help by "perl script_name --h".
+The pipeline for irCLASH data analysis
+The detailed manual is in "Manual" file.
+For each perl script, the command line can be obtained by "perl script_name --h".

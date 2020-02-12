@@ -1,5 +1,5 @@
 The pipeline for irCLASH:
-Step1. filter the raw fastq data using cutadapt;
-Step2. discard the PCR duplicates using fastx_collapser;
-Step3. discard the barcode sequence using perl script or other software, for our perl script:discard_barcodes.pl;
-Step4. the search hybrid pipelines were packed into the perl script:RBP_irCLASH_pipline.pl.
+Step1. trim the raw fastq data using cutadapt;
+Step2. remove the PCR duplicates using fastx_collapser;
+Step3. trim the barcode sequence using perl script (discard_barcodes.pl) or other software;
+Step4. identify hybrid reads using the perl script:RBP_irCLASH_pipline.pl.

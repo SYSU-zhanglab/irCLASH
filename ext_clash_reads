@@ -1,0 +1,70 @@
+#! /usr/bin/env perl
+   use strict;
+   use 5.010;
+   use autodie;
+   use Getopt::Long;
+   my($in,$seq,$out,$help);
+   GetOptions("in=s"=>\$in,"seq=s"=>\$seq,"out=s"=>\$out,"help"=>\$help);
+   if($in and $seq and $out){
+     open IN,'<',$in;
+     open SEQ,'<',$seq;
+     open OUT,'>',$out;
+
+     my $id;
+     my %reads;
+     while(<SEQ>){
+       chomp;
+       if(m/^>/){
+         $id=substr($_,1);
+      }else{
+         $reads{$id}=$_;
+         $id='';
+      }
+    }
+     close SEQ;
+     my %res;
+     while(<IN>){
+       unless(m/^@/){
+         chomp;
+         my @lines=split(/\t/,$_);
+         
+         my @ss=split(//,$reads{$lines[0]});
+         if($lines[1] ==4){
+           print OUT ">".$lines[0]."\n".$reads{$lines[0]}."\n";
+        }else{
+           my @score=split(/\:/,$lines[11]);
+           if(not $res{$lines[0]}){
+             $res{$lines[0]}=$score[-1];
+             if($lines[5] !~ m/S/){ 
+               print OUT ">".$lines[0]."\n".$reads{$lines[0]}."\n";
+            }elsif($lines[5] =~ m/^\d+S.+M$/){
+               my @pos=split(/S/,$lines[5]);
+               print OUT ">".$lines[0]."\n".join("",@ss[$pos[0]..$#ss]).join("",@ss[0..($pos[0]-1)])."\n";
+            }elsif($lines[5]=~ m/^\d+M.*\d+S$/){
+               $lines[5] =~ s/S$//g;
+               my @pos=split(/M/,$lines[5]);
+               print OUT ">".$lines[0]."\n".join("",@ss[($#ss+1-$pos[-1])..$#ss]).join("",@ss[0..($#ss+1-$pos[-1]-1)])."\n";
+            }elsif($lines[5] =~ m/^\d+S.+S$/){#print $lines[5]."\n";
+               $lines[5] =~ s/S$//g;
+               my @pos=split(/[MS]/,$lines[5]);
+              if($pos[0]>=$pos[-1]){
+                print OUT ">".$lines[0]."\n".join("",@ss[$pos[0]..$#ss]).join("",@ss[0..($pos[0]-1)])."\n";
+             }else{
+                print OUT ">".$lines[0]."\n".join("",@ss[($#ss+1-$pos[-1])..$#ss]).join("",@ss[0..($#ss+1-$pos[-1]-1)])."\n";
+             }
+           }
+          }
+        }
+      }
+    }
+     close IN;
+     close OUT;
+   }elsif($help){
+      say"This script aims to extract and recombine the reads' sequences!\n\n
+      --in:the input file;\n
+      --seq:the reads' sequences file;\n
+      --out:the result file;\n
+      --help:the help!\n";
+   }else{
+      print "Please read the help!\n";
+   }

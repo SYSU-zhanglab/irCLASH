@@ -1,0 +1,79 @@
+#! /usr/bin/env perl
+   use strict;
+   use 5.010;
+   use autodie;
+   use Getopt::Long;
+   my($in,$unique,$multi,$help,$reads,$map,$unmap);
+   GetOptions("in=s"=>\$in,"unique=s"=>\$unique,"multi=s"=>\$multi,"help"=>\$help,"reads=s"=>\$reads,"map=s"=>\$map,"unmap=s"=>\$unmap);
+   if($in and $unique and $multi and $reads and $map and $unmap){
+     open IN,'<',$in;
+     open UNIQUE,'>',$unique;
+     open MULTI,'>',$multi;
+     open READS,'<',$reads;
+     open MAP,'>',$map;
+     open UNMAP,'>',$unmap;
+     
+     my %rds;
+     my $id;
+     while(<READS>){
+       chomp;
+       if(m/^>/){
+         $id=substr($_,1);
+      }else{
+         $rds{$id}=$_;
+         $id='';
+      }
+    }
+     close READS;
+
+     my %clips;
+     my %ms;
+     my %rs;
+     while(<IN>){
+       if(m/^@/){
+         print UNIQUE $_;
+         print MULTI $_;
+      }else{
+         chomp;
+         my @lines=split(/\t/,$_);
+         if($lines[1]==4){
+           print UNMAP '>'.$lines[0]."\n".$rds{$lines[0]}."\n";
+        }else{
+           unless($rs{$lines[0]}){
+             print MAP '>'.$lines[0]."\n".$rds{$lines[0]}."\n";
+             $rs{$lines[0]}=1;
+          }
+        }
+        #print $lines[11]."\n";
+         my $num=substr($lines[11],rindex($lines[11],':')+1);
+         #print $num."\n";
+         if($num>0 and $lines[5] !~ m/N/){
+           $clips{$lines[0]}=1;
+        }
+         if($num==1 and $lines[5] =~m/N/){
+           print UNIQUE $_."\n"; #print $_."\n";
+        }elsif($num>=2 and $lines[5]=~m/N/){
+           $ms{$lines[0]}{$_}=1;
+        }
+      }
+    }
+     close IN;
+     close MAP;
+     close UNMAP;
+     close UNIQUE;
+     foreach(sort keys %ms){
+       unless($clips{$_}){
+         print MULTI join("\n",sort keys %{$ms{$_}})."\n";
+      }
+    }
+     close MULTI;
+   }elsif($help){
+      say"This script aims to extract the unique and multiple hybrids!\n\n
+      --in:the input file;\n
+      --unique;--multi:the result file;\n
+      --reads:all reads file;\n
+      --map;--unmap:the reads file;\n
+      --help:the help!\n";
+   }else{
+      print "Please read the help!\n";
+   }

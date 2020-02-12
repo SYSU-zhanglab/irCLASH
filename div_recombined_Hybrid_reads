@@ -1,0 +1,176 @@
+#! /usr/bin/env perl
+   use strict;
+   use 5.010;
+   use autodie;
+   use Getopt::Long;
+   my($in,$seq,$help,$sam,$unique,$multi,$map,$unmap,$reads);
+   GetOptions("in=s"=>\$in,"seq=s"=>\$seq,"help"=>\$help,"sam=s"=>\$sam,"unique=s"=>\$unique,"multi=s"=>\$multi,"map=s"=>\$map,"unmap=s"=>\$unmap,"reads=s"=>\$reads);
+   if($in and $seq and $sam and $unique and $multi and $map and $unmap and $reads){
+     open IN,'<',$in;
+     open SEQ,'<',$seq;
+     open SAM,'<',$sam;
+     open READS,'<',$reads;
+     open UNIQUE,'>',$unique;
+     open MULTI,'>',$multi;
+     open MAP,'>',$map;
+     open UNMAP,'>',$unmap;
+     
+     my $id;
+     my %sqs;
+     while(<SEQ>){
+       chomp;
+       if(m/^>/){
+         $id=substr($_,1);
+      }else{
+         $sqs{$id}=$_;
+         $id='';
+      }
+    }
+     close SEQ;
+
+     my $id;
+     my %rds;
+     while(<READS>){
+       chomp;
+       if(m/^>/){
+         $id=substr($_,1);
+      }else{
+         $rds{$id}=$_;
+         $id='';
+      }
+    }
+     close READS;
+     my %gaps;
+     my %scores;
+     my %types;
+     while(<SAM>){
+       unless(m/^@/){
+         chomp;
+         my @lines=split(/\t/,$_);
+         if($lines[5]=~m/S/){
+           my @ss=split(/\:/,$lines[11]);
+           if(not $scores{$lines[0]}){
+             $scores{$lines[0]}=$ss[-1];
+             if($lines[5] =~ m/^\d+S.+M$/){
+               $types{$lines[0]}='Beg';
+           }elsif($lines[5]=~ m/^\d+M.*\d+S$/){
+               $types{$lines[0]}='End';
+           }elsif($lines[5] =~ m/^\d+S.+S$/){#print $lines[5]."\n";
+               $lines[5] =~ s/S$//g;
+               my @pos=split(/[MSDI]/,$lines[5]);
+               if($pos[0]>=$pos[-1]){
+                 $types{$lines[0]}='Beg'; 
+              }else{
+                 $types{$lines[0]}='End';
+              }
+            }
+          }
+           if($scores{$lines[0]}==$ss[-1]){
+             if($lines[5] =~ m/^\d+S.+M$/){
+               my @pos=split(/S/,$lines[5]);
+               $gaps{$lines[0]}{$lines[2]."\t".$lines[3]}=1;
+           }elsif($lines[5]=~ m/^\d+M.*\d+S$/){
+               $lines[5] =~ s/\d+S$//g;
+               $lines[5]=~s/\d+I//g;
+               my @pos=split(/[MDN]/,$lines[5]);
+               my $p=$lines[3]-1;
+               foreach(@pos){
+                 $p +=$_;
+              }
+               $gaps{$lines[0]}{$lines[2]."\t".$p}=1;
+           }elsif($lines[5] =~ m/^\d+S.+S$/){#print $lines[5]."\n";
+               $lines[5] =~ s/S$//g;
+               my @pos=split(/[MSDIN]/,$lines[5]);
+               if($pos[0]>=$pos[-1]){
+                 $gaps{$lines[0]}{$lines[2]."\t".$lines[3]}=1;
+              }else{
+                 $lines[5] =~ s/\d+S$//g;
+                 $lines[5]=~s/\d+I//g;
+                 my @pos=split(/[MDN]/,$lines[5]);
+                 my $p=$lines[3]-1;
+                 foreach(@pos){
+                   $p +=$_;
+                }
+                 $gaps{$lines[0]}{$lines[2]."\t".$p}=1;
+              }
+            }
+          }
+        }
+      }
+    }
+     close SAM;
+     
+     my %muls;
+     my %mps;
+     while(<IN>){
+       if(m/^@/){
+         print MULTI $_;
+         print UNIQUE $_;
+      }else{
+         chomp;
+         my @lines=split(/\t/,$_);
+         if($lines[1]!=4){
+           my $num=substr($lines[11],rindex($lines[11],':')+1);
+         #print $num."\n";
+           my @jucs=split(/\,/,$lines[-1]);
+           
+           if($num==1 and $lines[5] =~m/N/){ #print $gaps{$lines[0]}."\t".$lines[5]."\n";
+             my @pos=split(/\d+N/,$lines[5]); #print $pos[0]."\n";
+             my $end=$jucs[-1];
+             $pos[-1]=~s/\d+I//g;
+             foreach(split(/[MD]/,$pos[-1])){
+               $end +=$_;
+            }
+             if(($types{$lines[0]} eq 'Beg' and $gaps{$lines[0]}{$lines[2]."\t".$lines[3]}) or ($types{$lines[0]} eq 'End' and $gaps{$lines[0]}{$lines[2]."\t".$end})){
+               print UNIQUE $_."\n";
+               print MAP ">".$lines[0]."\n".$sqs{$lines[0]}."\n";
+               $mps{$lines[0]}=1;
+            }
+          }elsif($num>=2 and $lines[5]=~m/N/){
+             my @pos=split(/\d+N/,$lines[5]);
+             my $end=$jucs[-1];
+             $pos[-1]=~s/\d+I//g;
+             foreach(split(/[MD]/,$pos[-1])){
+               $end +=$_;
+            }
+
+             if(($types{$lines[0]} eq 'Beg' and $gaps{$lines[0]}{$lines[2]."\t".$lines[3]}) or ($types{$lines[0]} eq 'End' and $gaps{$lines[0]}{$lines[2]."\t".$end})){
+               $muls{$lines[0]}{$_}=1;
+               $mps{$lines[0]}=1;
+            }
+          }
+        }
+      }
+    }
+     close IN;
+     foreach my $rd(sort keys %muls){
+       print MAP ">".$rd."\n".$sqs{$rd}."\n";
+       my @ids=sort keys %{$muls{$rd}};
+       if($#ids==0){
+         print UNIQUE $ids[0]."\n";
+      }else{
+         print MULTI join("\n",@ids)."\n";
+      }
+    }
+     foreach(keys %rds){
+       unless($mps{$_}){
+         print UNMAP ">".$_."\n".$rds{$_}."\n";
+      }
+    }
+     close MAP;
+     close UNMAP;
+     close UNIQUE;
+     close MULTI;
+
+   }elsif($help){
+      say"This script aims to divide the results of  recombine the hybrid reads!\n\n
+      --in:the input file;\n
+      --sam:the bowtie2 mapping result file;\n
+      --seq:the reads' sequences file;\n
+      --reads:all the reads' sequences file;\n
+      --unique;--multi:the result file;\n
+      --map;--unmap:the mapped and unmapped reads' sequences files;\n
+      --help:the help!\n";
+   }else{
+      print "Please read the help!\n";
+   }

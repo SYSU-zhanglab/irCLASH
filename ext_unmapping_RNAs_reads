@@ -1,0 +1,52 @@
+#! /usr/bin/env perl
+   use strict;
+   use 5.010;
+   use autodie;
+   use Getopt::Long;
+   my($in,$reads,$out,$help);
+   GetOptions("in=s"=>\$in,"reads=s"=>\$reads,"out=s"=>\$out,"help"=>\$help);
+   if($in and $reads and $out){
+     open IN,'<',$in;
+     open READS,'<',$reads;
+     open OUT,'>',$out;
+
+     my %rds;
+     my $id;
+     while(<READS>){
+       chomp;
+       if(m/^>/){
+         $id=substr($_,1);
+      }else{
+         $rds{$id}=$_;
+         $id='';
+      }
+    }
+     close READS;
+     
+     my %alls;
+     my %mps;
+     while(<IN>){
+       unless(m/^@/){
+         my @lines=split(/\t/,$_);
+         $alls{$lines[0]}=1;
+         if($lines[1]==0){
+           $mps{$lines[0]}=1;
+        }
+      }
+    }
+     close IN;
+     foreach(sort keys %alls){
+       unless($mps{$_}){
+         print OUT '>'.$_."\n".$rds{$_}."\n";
+      }
+    }
+     close OUT;
+   }elsif($help){
+      say"This script aims to extract the unmapped reads!\n\n
+      --in:the input file;\n
+      --reads:the reads file;\n
+      --out:the result file;\n
+      --help:the help!\n";
+   }else{
+      print "Please read the help!\n";
+   }

@@ -1,0 +1,31 @@
+#! /usr/bin/env perl
+   use strict;
+   use 5.010;
+   use autodie;
+   use Getopt::Long;
+   my($ina,$inb,$out,$help);
+   GetOptions("ina=s"=>\$ina,"inb=s"=>\$inb,"out=s"=>\$out,"help"=>\$help);
+   if($ina and $inb and $out){
+     open INA,'<',$ina;
+     open INB,'<',$inb;
+     open OUT,'>',$out;
+     
+     while(<INA>){
+       print OUT $_;
+    }
+     close INA;
+     while(<INB>){
+       unless(m/^@/){
+         print OUT $_;
+      }
+    }
+     close INB;
+     close OUT;
+   }elsif($help){
+      say"This script aims to merge the results!\n\n
+      --ina;--inb:the input file;\n
+      --out:the result file;\n
+      --help:the help!\n";
+   }else{
+      print "Please read the help!\n";
+   }
